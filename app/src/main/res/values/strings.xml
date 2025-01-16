@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">VAD Demo</string>
+    <string name="turn_on_vad">Please turn on the VAD model</string>
+    <string name="start_vad">Start VAD</string>
+    <string name="inferring_voice">Inferring Voice....</string>
+    <string name="vad_detected">VAD Detected\n Mute is activated</string>
+    <string name="vad_not_detected">VAD Not Detected\n Mute is deactivated</string>
+    <string name="stop_vad">Stop VAD</string>
+</resources>
