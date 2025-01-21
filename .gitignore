@@ -13,3 +13,9 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+caches/
+*.cache
+*.log
+*.tmp
+*.bak
