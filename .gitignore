@@ -15,6 +15,7 @@
 local.properties
 
 caches/
+caches/*
 *.cache
 *.log
 *.tmp
