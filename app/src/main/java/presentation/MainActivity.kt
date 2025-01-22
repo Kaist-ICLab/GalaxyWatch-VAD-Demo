@@ -10,13 +10,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
-import data.AudioInputImpl
+import androidx.lifecycle.ViewModelProvider
 import presentation.theme.VADDemoTheme
 
 class MainActivity : ComponentActivity() {
-    private lateinit var audioInput: AudioInputImpl
-
     // Permission request launcher
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -30,16 +27,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize the AudioInputImpl with the Activity context
-        audioInput = AudioInputImpl(this)
+        // Initialize VADViewModel with VADViewModelFactory
+        val viewModel: VADViewModel = ViewModelProvider(
+            this,
+            VADViewModelFactory(this) // Pass the Activity context to the factory
+        )[VADViewModel::class.java]
 
         setContent {
-            val viewModel: VADViewModel = viewModel()
             VADDemoTheme {
                 VADApp(
                     viewModel = viewModel,
-                    checkPermission = { checkAndRequestPermission() }, // Pass permission handler
-                    audioInput = audioInput // Pass AudioInputImpl to the app
+                    checkPermission = { checkAndRequestPermission() }
                 )
             }
         }
@@ -63,8 +61,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun VADApp(
     viewModel: VADViewModel,
-    checkPermission: () -> Boolean,
-    audioInput: AudioInputImpl
+    checkPermission: () -> Boolean
 ) {
     val isRunning = viewModel.isRunning.collectAsState().value
     val isDetected = viewModel.isDetected.collectAsState().value
@@ -74,13 +71,11 @@ fun VADApp(
         isDetected = isDetected,
         onStart = {
             if (checkPermission()) { // Ensure permissions are granted
-                audioInput.startRecording() // Start recording using AudioInputImpl
-                viewModel.startVAD()
+                viewModel.startProcessing() // Start audio processing via ViewModel
             }
         },
         onStop = {
-            audioInput.stopRecording() // Stop recording
-            viewModel.stopVAD()
+            viewModel.stopProcessing() // Stop audio processing via ViewModel
         }
     )
 }

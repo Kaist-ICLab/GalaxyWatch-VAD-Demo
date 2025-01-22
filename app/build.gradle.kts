@@ -77,6 +77,6 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.ui.text)
     implementation(libs.androidx.ui.text.google.fonts)
-    implementation (libs.core)
+
 }
 
