@@ -1,6 +1,7 @@
 package kaist.iclab.vad_demo
 
 import kaist.iclab.vad_demo.core.collectors.AudioCollector
+import kaist.iclab.vad_demo.core.model.ModelInterface
 import kaist.iclab.vad_demo.core.model.VADModel
 import kaist.iclab.vad_demo.viewmodel.VADViewModel
 import org.koin.core.module.dsl.singleOf
@@ -9,6 +10,6 @@ import org.koin.dsl.module
 
 val koinModule = module {
     singleOf(::AudioCollector)
-    singleOf(::VADModel)
+    single<ModelInterface<Boolean>> { VADModel(get()) }
     viewModelOf(::VADViewModel)
 }

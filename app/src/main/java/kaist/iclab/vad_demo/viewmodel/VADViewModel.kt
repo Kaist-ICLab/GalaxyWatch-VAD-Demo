@@ -18,14 +18,14 @@ class VADViewModel(
 
     override fun startVAD() {
         _isRunning.value = true
-        audioCollector.start()
+        //audioCollector.start()
         vadModel.start()
 
     }
 
     override fun stopVAD() {
         _isRunning.value = false
-        audioCollector.stop()
+        //audioCollector.stop()
         vadModel.stop()
     }
 

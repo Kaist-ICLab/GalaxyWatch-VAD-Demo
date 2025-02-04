@@ -61,5 +61,7 @@ dependencies {
     implementation(libs.koin.android)
     implementation(libs.koin.core)
     implementation(libs.koin.androidx.compose)
+    implementation ("be.tarsos.dsp:core:2.5")
+    implementation ("be.tarsos.dsp:jvm:2.5")
 
 }
