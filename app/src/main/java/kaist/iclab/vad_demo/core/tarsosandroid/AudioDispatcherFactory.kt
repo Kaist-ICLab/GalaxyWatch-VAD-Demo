@@ -1,101 +1,90 @@
 package kaist.iclab.vad_demo.core.tarsosandroid
 
+import android.content.Context
+import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import androidx.core.content.ContextCompat
 import be.tarsos.dsp.AudioDispatcher
-import be.tarsos.dsp.io.PipedAudioStream
 import be.tarsos.dsp.io.TarsosDSPAudioFormat
 import be.tarsos.dsp.io.TarsosDSPAudioInputStream
 
-
-/**
- * The Factory creates [AudioDispatcher] objects from the
- * configured default microphone of an Android device.
- * It depends on the android runtime and does not work on the standard Java runtime.
- *
- * @author Joren Six
- * @see AudioDispatcher
- */
 object AudioDispatcherFactory {
-    /**
-     * Create a new AudioDispatcher connected to the default microphone.
-     *
-     * @param sampleRate
-     * The requested sample rate.
-     * @param audioBufferSize
-     * The size of the audio buffer (in samples).
-     *
-     * @param bufferOverlap
-     * The size of the overlap (in samples).
-     * @return A new AudioDispatcher
-     */
-    /*fun fromDefaultMicrophone(
+
+    fun fromDefaultMicrophone(
+        context: Context, // FIX 1: Pass Context for permission check
         sampleRate: Int,
-        audioBufferSize: Int, bufferOverlap: Int
+        audioBufferSize: Int,
+        bufferOverlap: Int
     ): AudioDispatcher {
-        val minAudioBufferSize = AudioRecord.getMinBufferSize(
+
+        // Check for RECORD_AUDIO permission before proceeding
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            throw SecurityException("Missing RECORD_AUDIO permission")
+        }
+
+        val minBufferSize = AudioRecord.getMinBufferSize(
             sampleRate,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT
         )
-        val minAudioBufferSizeInSamples = minAudioBufferSize / 2
-        if (minAudioBufferSizeInSamples <= audioBufferSize) {
-            val audioInputStream = AudioRecord(
-                MediaRecorder.AudioSource.MIC, sampleRate,
-                AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_16BIT,
-                audioBufferSize * 2
-            )
-            val format = TarsosDSPAudioFormat(sampleRate.toFloat(), 16, 1, true, false)
 
-            val audioStream: TarsosDSPAudioInputStream =
-                AndroidAudioInputStream(audioInputStream, format)
-            //start recording ! Opens the stream.
-            audioInputStream.startRecording()
-            return AudioDispatcher(audioStream, audioBufferSize, bufferOverlap)
-        } else {
-            throw IllegalArgumentException("Buffer size too small should be at least " + (minAudioBufferSize * 2))
-        }
-    }
-*/
-    /**
-     * Create a stream from a piped sub process and use that to create a new
-     * [AudioDispatcher] The sub-process writes a WAV-header and
-     * PCM-samples to standard out. The header is ignored and the PCM samples
-     * are are captured and interpreted. Examples of executables that can
-     * convert audio in any format and write to stdout are ffmpeg and avconv.
-     *
-     * @param source
-     * The file or stream to capture.
-     * @param targetSampleRate
-     * The target sample rate.
-     * @param audioBufferSize
-     * The number of samples used in the buffer.
-     * @param bufferOverlap
-     * The number of samples to overlap the current and previous buffer.
-     * @return A new audioprocessor.
-     */
-    fun fromPipe(
-        source: String?,
-        targetSampleRate: Int,
-        audioBufferSize: Int,
-        bufferOverlap: Int
-    ): AudioDispatcher {
-        val f = PipedAudioStream(source)
-        val audioStream = f.getMonoStream(targetSampleRate, 0.0)
-        return AudioDispatcher(audioStream, audioBufferSize, bufferOverlap)
-    }
+        val audioRecord = AudioRecord(
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            sampleRate,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+            minBufferSize
+        )
 
-    fun fromFloatArray(
-        audioData: FloatArray,
-        sampleRate: Int,
-        audioBufferSize: Int,
-        bufferOverlap: Int
-    ): AudioDispatcher {
         val format = TarsosDSPAudioFormat(sampleRate.toFloat(), 16, 1, true, false)
-        val audioStream = UniversalAudioInputStream(audioData, format)
+
+        val buffer = ShortArray(audioBufferSize)
+        val floatBuffer = FloatArray(audioBufferSize)
+
+        audioRecord.startRecording()
+
+        // Convert PCM16 to Float and stream it continuously
+        Thread {
+            while (audioRecord.read(buffer, 0, buffer.size) > 0) {
+                for (i in buffer.indices) {
+                    floatBuffer[i] = buffer[i] / 32768.0f
+                }
+            }
+        }.start()
+
+        val audioStream: TarsosDSPAudioInputStream = UniversalAudioInputStream(floatBuffer, format) // FIX 2: Pass FloatArray instead of AudioRecord
         return AudioDispatcher(audioStream, audioBufferSize, bufferOverlap)
     }
 
+
+
+
+
+/**
+ * Create a dispatcher from a raw float array.
+ *
+ * @param audioData The raw float array containing audio samples.
+ * @param sampleRate The sample rate of the data.
+ * @param audioBufferSize The size of the processing buffer.
+ * @param bufferOverlap The overlap between buffers.
+ * @return A new AudioDispatcher
+ */
+fun fromFloatArray(
+    audioData: FloatArray,
+    sampleRate: Int,
+    audioBufferSize: Int,
+    bufferOverlap: Int
+): AudioDispatcher {
+    val format = TarsosDSPAudioFormat(
+        sampleRate.toFloat(),
+        16,
+        1,
+        true,
+        false
+    )
+    val audioStream = UniversalAudioInputStream(audioData, format)
+    return AudioDispatcher(audioStream, audioBufferSize, bufferOverlap)
+}
 }
