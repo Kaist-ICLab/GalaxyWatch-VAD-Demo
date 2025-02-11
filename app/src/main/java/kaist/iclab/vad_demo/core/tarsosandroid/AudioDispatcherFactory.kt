@@ -12,8 +12,8 @@ import be.tarsos.dsp.io.TarsosDSPAudioFormat
 import kaist.iclab.vad_demo.core.utils.UniversalAudioInputStream
 
 object AudioDispatcherFactory {
-    private var shouldRecord = true  // ✅ Control flag to stop recording properly
-    private var audioRecord: AudioRecord? = null  // ✅ Store AudioRecord reference
+    private var shouldRecord = true  //Control flag to stop recording properly
+    private var audioRecord: AudioRecord? = null  //Store AudioRecord reference
 
     fun fromDefaultMicrophone(
         context: Context,
@@ -48,9 +48,9 @@ object AudioDispatcherFactory {
 
         val buffer = ShortArray(audioBufferSize)
 
-        shouldRecord = true  // ✅ Allow recording to start
+        shouldRecord = true  //Allow recording to start
         audioRecord?.startRecording()
-        Log.d("AudioDispatcherFactory", "✅ AudioRecord started recording.")
+        Log.d("AudioDispatcherFactory", "AudioRecord started recording.")
 
         val recordingThread = Thread {
             while (shouldRecord) {
@@ -72,8 +72,8 @@ object AudioDispatcherFactory {
 
     }
 
-    fun stopRecording() {  // ✅ Call this when stopping VAD
-        shouldRecord = false  // ✅ Stop the recording loop
+    fun stopRecording() {  //Call this when stopping VAD
+        shouldRecord = false  //Stop the recording loop
         audioRecord?.apply {
             stop()
             release()

@@ -21,11 +21,11 @@ class AudioCollector(private val context: Context) : CollectorInterface {
 
     private val mfccProcessor = MFCC(2048, 16000f, 13, 20, 300f, 8000f)
 
-    // 🔄 Buffer to store MFCC frames
+    //Buffer to store MFCC frames
     private val mfccBuffer = mutableListOf<FloatArray>()
 
     override fun start() {
-        Log.d("AudioCollector", "🔄 Starting Audio Collection.")
+        Log.d("AudioCollector", "Starting Audio Collection.")
 
         if (dispatcher != null) {
             Log.d("AudioCollector", "Stopping existing dispatcher before restarting")
@@ -47,16 +47,16 @@ class AudioCollector(private val context: Context) : CollectorInterface {
                     val mfccValues = mfccProcessor.mfcc
                     if (mfccValues.isNotEmpty() && mfccValues.all { it.isFinite() }) {
 
-                        // ✅ Apply Scaling (Multiply MFCC values by 5)
+                        // Apply Scaling (Multiply MFCC values by 5)
                         val scaledMFCC = mfccValues.map { it * 5f }.toFloatArray()
 
-                        // ✅ Store Scaled MFCC frame in buffer
+                        // Store Scaled MFCC frame in buffer
                         mfccBuffer.add(scaledMFCC.copyOf())
                         Log.d("AudioCollector", "🎵 Collected MFCC frame: ${mfccBuffer.size}/1")
 
-                        // ✅ When we have 1 frame, send to VADModel
+                        // When we have 1 frame, send to VADModel
                         if (mfccBuffer.size >= 1) {
-                            Log.d("AudioCollector", "✅ Sending 1 MFCC frames to VADModel for inference.")
+                            Log.d("AudioCollector", "Sending 1 MFCC frames to VADModel for inference.")
                             listener?.invoke(AudioDataEntity(mfccBuffer.flatMap { it.asList() }.toFloatArray()))
 
 
@@ -64,39 +64,39 @@ class AudioCollector(private val context: Context) : CollectorInterface {
                             mfccBuffer.clear()
                         }
                     } else {
-                        Log.e("AudioCollector", "⚠️ MFCC computation failed or returned empty values")
+                        Log.e("AudioCollector", "MFCC computation failed or returned empty values")
                     }
                     return true
                 }
 
                 override fun processingFinished() {
-                    Log.d("AudioCollector", "✅ MFCC processing finished.")
+                    Log.d("AudioCollector", "MFCC processing finished.")
                 }
             })
 
-            Log.d("AudioCollector", "🔄 Starting AudioDispatcher Thread")
+            Log.d("AudioCollector", "Starting AudioDispatcher Thread")
             val dispatcherThread = Thread(dispatcher, "AudioDispatcherThread")
             dispatcherThread.start()
 
-            // ✅ Give dispatcher time to initialize
+            // Give dispatcher time to initialize
             Thread.sleep(500)
 
-            // ✅ Confirm if dispatcher is actually running
+            // Confirm if dispatcher is actually running
             if (!dispatcherThread.isAlive) {
-                Log.e("AudioCollector", "❌ AudioDispatcher thread failed! Attempting manual restart.")
+                Log.e("AudioCollector", "AudioDispatcher thread failed! Attempting manual restart.")
                 stop()
                 start()
             } else {
-                Log.d("AudioCollector", "✅ AudioDispatcher thread is running")
+                Log.d("AudioCollector", "AudioDispatcher thread is running")
             }
 
         } catch (e: SecurityException) {
-            Log.e("AudioCollector", "🚨 Permission denied: ${e.message}")
+            Log.e("AudioCollector", "Permission denied: ${e.message}")
         }
     }
 
     override fun stop() {
-        Log.d("AudioCollector", "🛑 Stopping AudioCollector and AudioDispatcher.")
+        Log.d("AudioCollector", "Stopping AudioCollector and AudioDispatcher.")
         isPaused = true
         dispatcher?.stop()
         dispatcher = null

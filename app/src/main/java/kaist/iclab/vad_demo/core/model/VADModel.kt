@@ -24,20 +24,20 @@ class VADModel(
 
     // 🔹 Buffer to accumulate MFCC frames before inference
     private val mfccFrameBuffer = mutableListOf<FloatArray>()
-    private val requiredFrameCount = 100  // 🔄 Ensure at least 100 frames before inference
+    private val requiredFrameCount = 100  // Ensure at least 100 frames before inference
     private val numMFCCs = 13  // Number of MFCC coefficients per frame
 
     init {
-        Log.d("VADModel", "🚀 VADModel instance created")
+        Log.d("VADModel", "VADModel instance created")
         try {
             val modelFile = "sgvad_mfcc.tflite"
-            Log.d("VADModel", "📥 Loading TFLite Model: $modelFile")
+            Log.d("VADModel", "Loading TFLite Model: $modelFile")
 
             tfliteInterpreter = Interpreter(loadModelFile(context, modelFile))
 
-            Log.d("VADModel", "✅ Model Loaded Successfully")
+            Log.d("VADModel", "Model Loaded Successfully")
         } catch (e: Exception) {
-            Log.e("VADModel", "❌ Model Load Failed: ${e.message}")
+            Log.e("VADModel", "Model Load Failed: ${e.message}")
         }
     }
 
@@ -47,13 +47,13 @@ class VADModel(
      * Runs SG-VAD inference using TFLite.
      */
     private fun inference(mfccInput: Array<FloatArray>): Boolean {
-        Log.d("VADModel", "🚀 inference() function called!")
+        Log.d("VADModel", "inference() function called!")
 
         val timeSteps = mfccInput.size
-        Log.d("VADModel", "🟢 Received MFCC frames for inference: $timeSteps frames")
+        Log.d("VADModel", "Received MFCC frames for inference: $timeSteps frames")
 
         if (timeSteps < requiredFrameCount) {
-            Log.e("VADModel", "❌ Not enough MFCC frames for inference. TimeSteps: $timeSteps, Required: $requiredFrameCount")
+            Log.e("VADModel", "Not enough MFCC frames for inference. TimeSteps: $timeSteps, Required: $requiredFrameCount")
             return false
         }
 
@@ -66,16 +66,16 @@ class VADModel(
 
             val outputBuffer = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder())
 
-            Log.d("VADModel", "📥 Running inference on TFLite model...")
+            Log.d("VADModel", "Running inference on TFLite model...")
             tfliteInterpreter.run(inputBuffer, outputBuffer)
 
             outputBuffer.rewind()
             val vadScore = outputBuffer.float
-            Log.d("VADModel", "✅ VAD Inference complete! Score: $vadScore")
+            Log.d("VADModel", "VAD Inference complete! Score: $vadScore")
 
             return vadScore <= 0.513f
         } catch (e: Exception) {
-            Log.e("VADModel", "❌ Error during inference: ${e.message}")
+            Log.e("VADModel", "Error during inference: ${e.message}")
             e.printStackTrace()
             return false
         }

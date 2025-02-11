@@ -12,9 +12,9 @@ class UniversalAudioInputStream(
 ) : TarsosDSPAudioInputStream {
 
     companion object {
-        private const val MAX_QUEUE_SIZE = 1000 // ✅ Limit queue size
-        private const val CHUNK_SIZE = 512  // 🔄 Read in 512-byte chunks
-        private const val MAX_RETRIES = 10  // 🔄 Retry up to 10 times
+        private const val MAX_QUEUE_SIZE = 1000 // Limit queue size
+        private const val CHUNK_SIZE = 512  // Read in 512-byte chunks
+        private const val MAX_RETRIES = 10  // Retry up to 10 times
     }
 
     private val audioBuffer = LinkedBlockingQueue<Short>(MAX_QUEUE_SIZE)
@@ -31,7 +31,7 @@ class UniversalAudioInputStream(
             val sample = audioBuffer.poll()
 
             if (sample == null) {
-                Log.w("UniversalAudioInputStream", "⚠️ Buffer empty! Retrying ${MAX_RETRIES - retries} more times.")
+                Log.w("UniversalAudioInputStream", "Buffer empty! Retrying ${MAX_RETRIES - retries} more times.")
                 Thread.sleep(50)
                 retries++
                 continue
@@ -42,17 +42,17 @@ class UniversalAudioInputStream(
                 byteBuffer.putShort(sample)
                 bytesRead += 2
             } else {
-                Log.e("UniversalAudioInputStream", "❌ ByteBuffer overflow prevented!")
+                Log.e("UniversalAudioInputStream", "ByteBuffer overflow prevented!")
                 break
             }
         }
 
         if (bytesRead == 0) {
-            Log.e("UniversalAudioInputStream", "❌ No audio data read! Returning -1 to prevent crashes.")
+            Log.e("UniversalAudioInputStream", "No audio data read! Returning -1 to prevent crashes.")
             return -1
         }
 
-        Log.d("UniversalAudioInputStream", "🎶 Processed $bytesRead bytes of audio")
+        Log.d("UniversalAudioInputStream", "Processed $bytesRead bytes of audio")
         return bytesRead
     }
 
@@ -60,7 +60,7 @@ class UniversalAudioInputStream(
     fun write(shorts: ShortArray) {
         for (sample in shorts) {
             if (!audioBuffer.offer(sample)) {
-                // 🔄 Remove oldest sample if queue is full to prevent blockage
+                // Remove oldest sample if queue is full to prevent blockage
                 audioBuffer.poll()
                 audioBuffer.offer(sample)
             }
