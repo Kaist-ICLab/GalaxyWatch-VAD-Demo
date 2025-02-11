@@ -5,6 +5,8 @@ import kaist.iclab.vad_demo.core.collectors.AudioCollector
 import kaist.iclab.vad_demo.core.model.ModelInterface
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import android.content.Context
+
 
 class VADViewModel(
     private val audioCollector: AudioCollector,

@@ -5,86 +5,80 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.util.Log
 import androidx.core.content.ContextCompat
 import be.tarsos.dsp.AudioDispatcher
 import be.tarsos.dsp.io.TarsosDSPAudioFormat
-import be.tarsos.dsp.io.TarsosDSPAudioInputStream
+import kaist.iclab.vad_demo.core.utils.UniversalAudioInputStream
 
 object AudioDispatcherFactory {
+    private var shouldRecord = true  // ✅ Control flag to stop recording properly
+    private var audioRecord: AudioRecord? = null  // ✅ Store AudioRecord reference
 
     fun fromDefaultMicrophone(
-        context: Context, // FIX 1: Pass Context for permission check
+        context: Context,
         sampleRate: Int,
         audioBufferSize: Int,
         bufferOverlap: Int
     ): AudioDispatcher {
-
-        // Check for RECORD_AUDIO permission before proceeding
-        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
             throw SecurityException("Missing RECORD_AUDIO permission")
         }
 
         val minBufferSize = AudioRecord.getMinBufferSize(
-            sampleRate,
+            16000,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT
-        )
+        ).coerceAtLeast(4096) * 4
 
-        val audioRecord = AudioRecord(
+        audioRecord = AudioRecord(
             MediaRecorder.AudioSource.VOICE_RECOGNITION,
-            sampleRate,
+            16000,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
             minBufferSize
         )
 
         val format = TarsosDSPAudioFormat(sampleRate.toFloat(), 16, 1, true, false)
+        val audioStream = UniversalAudioInputStream(format)
 
         val buffer = ShortArray(audioBufferSize)
-        val floatBuffer = FloatArray(audioBufferSize)
 
-        audioRecord.startRecording()
+        shouldRecord = true  // ✅ Allow recording to start
+        audioRecord?.startRecording()
+        Log.d("AudioDispatcherFactory", "✅ AudioRecord started recording.")
 
-        // Convert PCM16 to Float and stream it continuously
-        Thread {
-            while (audioRecord.read(buffer, 0, buffer.size) > 0) {
-                for (i in buffer.indices) {
-                    floatBuffer[i] = buffer[i] / 32768.0f
+        val recordingThread = Thread {
+            while (shouldRecord) {
+                val readSize = audioRecord?.read(buffer, 0, buffer.size) ?: -1
+                if (readSize > 0) {
+                    Log.d("AudioDispatcherFactory", "Read $readSize samples from microphone.")
+                    audioStream.write(buffer.copyOf(readSize))
+                } else {
+                    Log.e("AudioDispatcherFactory", "AudioRecord.read() returned $readSize, possible error!")
                 }
             }
-        }.start()
+            Log.d("AudioDispatcherFactory", "Stopping AudioRecord thread.")
+        }
+        recordingThread.start()
 
-        val audioStream: TarsosDSPAudioInputStream = UniversalAudioInputStream(floatBuffer, format) // FIX 2: Pass FloatArray instead of AudioRecord
-        return AudioDispatcher(audioStream, audioBufferSize, bufferOverlap)
+        return AudioDispatcher(audioStream, audioBufferSize, bufferOverlap).also {
+            Log.d("AudioDispatcherFactory", "AudioDispatcher created with bufferSize=$audioBufferSize, bufferOverlap=$bufferOverlap")
+        }
+
     }
 
-
-
-
-
-/**
- * Create a dispatcher from a raw float array.
- *
- * @param audioData The raw float array containing audio samples.
- * @param sampleRate The sample rate of the data.
- * @param audioBufferSize The size of the processing buffer.
- * @param bufferOverlap The overlap between buffers.
- * @return A new AudioDispatcher
- */
-fun fromFloatArray(
-    audioData: FloatArray,
-    sampleRate: Int,
-    audioBufferSize: Int,
-    bufferOverlap: Int
-): AudioDispatcher {
-    val format = TarsosDSPAudioFormat(
-        sampleRate.toFloat(),
-        16,
-        1,
-        true,
-        false
-    )
-    val audioStream = UniversalAudioInputStream(audioData, format)
-    return AudioDispatcher(audioStream, audioBufferSize, bufferOverlap)
-}
+    fun stopRecording() {  // ✅ Call this when stopping VAD
+        shouldRecord = false  // ✅ Stop the recording loop
+        audioRecord?.apply {
+            stop()
+            release()
+        }
+        audioRecord = null
+        Log.d("AudioDispatcherFactory", "AudioRecord stopped and released.")
+    }
 }

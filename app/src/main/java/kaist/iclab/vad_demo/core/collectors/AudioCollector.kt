@@ -3,110 +3,106 @@ package kaist.iclab.vad_demo.core.collectors
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.media.AudioFormat
-import android.media.AudioRecord
-import android.media.MediaRecorder
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import be.tarsos.dsp.AudioDispatcher
-import be.tarsos.dsp.io.TarsosDSPAudioFormat
 import kaist.iclab.vad_demo.core.tarsosandroid.AudioDispatcherFactory
+import be.tarsos.dsp.AudioProcessor
+import be.tarsos.dsp.AudioEvent
+import be.tarsos.dsp.mfcc.MFCC
 
 class AudioCollector(private val context: Context) : CollectorInterface {
 
-    private var audioRecord: AudioRecord? = null
-    private var dispatcher: AudioDispatcher? = null
-    private var isRecording = false
-
+    var dispatcher: AudioDispatcher? = null
+    private var isPaused = false
     override var listener: ((AudioDataEntity) -> Unit)? = null
 
+    private val mfccProcessor = MFCC(2048, 16000f, 13, 20, 300f, 8000f)
+
+    // 🔄 Buffer to store MFCC frames
+    private val mfccBuffer = mutableListOf<FloatArray>()
+
     override fun start() {
-        if (!hasMicrophonePermission()) {
-            Log.e("AudioCollector", "Microphone permission not granted! Requesting permission...")
-            requestMicrophonePermission()
-            return
+        Log.d("AudioCollector", "🔄 Starting Audio Collection.")
+
+        if (dispatcher != null) {
+            Log.d("AudioCollector", "Stopping existing dispatcher before restarting")
+            stop()
         }
 
-        val sampleRate = 16000  // Adjust as needed
-        val bufferSize = 512
-        val bufferOverlap = 256
+        val sampleRate = 16000
+        val bufferSize = 2048
+        val bufferOverlap = 1024
 
         try {
-            val minBufferSize = AudioRecord.getMinBufferSize(
-                sampleRate,
-                AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_16BIT
-            )
-            val finalBufferSize = minBufferSize.coerceAtLeast(bufferSize * 2)
+            dispatcher = AudioDispatcherFactory.fromDefaultMicrophone(context, sampleRate, bufferSize, bufferOverlap)
 
-            audioRecord = AudioRecord(
-                MediaRecorder.AudioSource.VOICE_RECOGNITION, // Optimized for smartwatch speech
-                sampleRate,
-                AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_16BIT,
-                finalBufferSize
-            )
+            dispatcher?.addAudioProcessor(mfccProcessor)
+            dispatcher?.addAudioProcessor(object : AudioProcessor {
+                override fun process(audioEvent: AudioEvent): Boolean {
+                    Log.d("AudioCollector", "🎤 Processing audio, buffer size: ${audioEvent.bufferSize}")
 
-            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e("AudioCollector", "AudioRecord initialization failed!")
-                return
+                    val mfccValues = mfccProcessor.mfcc
+                    if (mfccValues.isNotEmpty() && mfccValues.all { it.isFinite() }) {
+
+                        // ✅ Apply Scaling (Multiply MFCC values by 5)
+                        val scaledMFCC = mfccValues.map { it * 5f }.toFloatArray()
+
+                        // ✅ Store Scaled MFCC frame in buffer
+                        mfccBuffer.add(scaledMFCC.copyOf())
+                        Log.d("AudioCollector", "🎵 Collected MFCC frame: ${mfccBuffer.size}/1")
+
+                        // ✅ When we have 1 frame, send to VADModel
+                        if (mfccBuffer.size >= 1) {
+                            Log.d("AudioCollector", "✅ Sending 1 MFCC frames to VADModel for inference.")
+                            listener?.invoke(AudioDataEntity(mfccBuffer.flatMap { it.asList() }.toFloatArray()))
+
+
+                            // Clear buffer after sending
+                            mfccBuffer.clear()
+                        }
+                    } else {
+                        Log.e("AudioCollector", "⚠️ MFCC computation failed or returned empty values")
+                    }
+                    return true
+                }
+
+                override fun processingFinished() {
+                    Log.d("AudioCollector", "✅ MFCC processing finished.")
+                }
+            })
+
+            Log.d("AudioCollector", "🔄 Starting AudioDispatcher Thread")
+            val dispatcherThread = Thread(dispatcher, "AudioDispatcherThread")
+            dispatcherThread.start()
+
+            // ✅ Give dispatcher time to initialize
+            Thread.sleep(500)
+
+            // ✅ Confirm if dispatcher is actually running
+            if (!dispatcherThread.isAlive) {
+                Log.e("AudioCollector", "❌ AudioDispatcher thread failed! Attempting manual restart.")
+                stop()
+                start()
+            } else {
+                Log.d("AudioCollector", "✅ AudioDispatcher thread is running")
             }
 
-            val format = TarsosDSPAudioFormat(sampleRate.toFloat(), 16, 1, true, false)
-
-            // Create AudioDispatcher
-            dispatcher = AudioDispatcherFactory.fromFloatArray(
-                FloatArray(finalBufferSize / 2),
-                sampleRate,
-                bufferSize,
-                bufferOverlap
-            )
-
-            // Start Recording
-            audioRecord?.startRecording()
-            isRecording = true
-
-            Thread {
-                val buffer = ShortArray(finalBufferSize / 2)
-                while (isRecording) {
-                    val readSize = audioRecord?.read(buffer, 0, buffer.size) ?: 0
-                    if (readSize > 0) {
-                        val floatBuffer = buffer.map { it / 32768.0f }.toFloatArray()
-                        listener?.invoke(AudioDataEntity(floatBuffer))
-                    }
-                }
-            }.start()
-
         } catch (e: SecurityException) {
-            Log.e("AudioCollector", "Permission denied: ${e.message}")
+            Log.e("AudioCollector", "🚨 Permission denied: ${e.message}")
         }
     }
 
     override fun stop() {
-        isRecording = false
-        audioRecord?.stop()
-        audioRecord?.release()
-        audioRecord = null
+        Log.d("AudioCollector", "🛑 Stopping AudioCollector and AudioDispatcher.")
+        isPaused = true
         dispatcher?.stop()
-    }
+        dispatcher = null
 
-    private fun hasMicrophonePermission(): Boolean {
-        return ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun requestMicrophonePermission() {
-        if (context is ComponentActivity) {
-            ActivityCompat.requestPermissions(
-                context,
-                arrayOf(Manifest.permission.RECORD_AUDIO),
-                REQUEST_RECORD_AUDIO_PERMISSION
-            )
-        }
+        // Stop microphone recording completely
+        AudioDispatcherFactory.stopRecording()
     }
 
     companion object {
