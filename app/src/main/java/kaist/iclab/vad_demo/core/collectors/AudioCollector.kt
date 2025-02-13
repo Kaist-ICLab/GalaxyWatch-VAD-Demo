@@ -42,7 +42,7 @@ class AudioCollector(private val context: Context) : CollectorInterface {
             dispatcher?.addAudioProcessor(mfccProcessor)
             dispatcher?.addAudioProcessor(object : AudioProcessor {
                 override fun process(audioEvent: AudioEvent): Boolean {
-                    Log.d("AudioCollector", "🎤 Processing audio, buffer size: ${audioEvent.bufferSize}")
+                    Log.d("AudioCollector", "Processing audio, buffer size: ${audioEvent.bufferSize}")
 
                     val mfccValues = mfccProcessor.mfcc
                     if (mfccValues.isNotEmpty() && mfccValues.all { it.isFinite() }) {
@@ -52,7 +52,7 @@ class AudioCollector(private val context: Context) : CollectorInterface {
 
                         // Store Scaled MFCC frame in buffer
                         mfccBuffer.add(scaledMFCC.copyOf())
-                        Log.d("AudioCollector", "🎵 Collected MFCC frame: ${mfccBuffer.size}/1")
+                        Log.d("AudioCollector", "Collected MFCC frame: ${mfccBuffer.size}/1")
 
                         // When we have 1 frame, send to VADModel
                         if (mfccBuffer.size >= 1) {

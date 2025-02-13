@@ -13,41 +13,53 @@ import java.nio.channels.FileChannel
 
 class VADModel(
     private val audioCollector: AudioCollector,
-    context: Context // Pass Context to load TFLite model
+    private val context: Context // Pass Context to load TFLite model
 ) : ModelInterface<Boolean> {
 
     private val _outputStateFlow = MutableStateFlow(false)
     override val outputStateFlow: StateFlow<Boolean>
         get() = _outputStateFlow
 
-    private lateinit var tfliteInterpreter: Interpreter
+    private var tfliteInterpreter: Interpreter? = null // Use nullable Interpreter
 
     // 🔹 Buffer to accumulate MFCC frames before inference
     private val mfccFrameBuffer = mutableListOf<FloatArray>()
     private val requiredFrameCount = 100  // Ensure at least 100 frames before inference
     private val numMFCCs = 13  // Number of MFCC coefficients per frame
+    private val modelFile = "sgvad_mfcc.tflite"
 
     init {
         Log.d("VADModel", "VADModel instance created")
+    }
+
+    /**
+     * Initializes or reinitializes the TFLite interpreter
+     */
+    private fun startInterpreter() {
+        if (tfliteInterpreter != null) {
+            Log.d("VADModel", "Interpreter already initialized.")
+            return
+        }
+
         try {
-            val modelFile = "sgvad_mfcc.tflite"
             Log.d("VADModel", "Loading TFLite Model: $modelFile")
-
             tfliteInterpreter = Interpreter(loadModelFile(context, modelFile))
-
             Log.d("VADModel", "Model Loaded Successfully")
         } catch (e: Exception) {
             Log.e("VADModel", "Model Load Failed: ${e.message}")
         }
     }
 
-
-
     /**
      * Runs SG-VAD inference using TFLite.
      */
     private fun inference(mfccInput: Array<FloatArray>): Boolean {
         Log.d("VADModel", "inference() function called!")
+
+        if (tfliteInterpreter == null) {
+            Log.e("VADModel", "Error: TFLite Interpreter is not initialized!")
+            return false
+        }
 
         val timeSteps = mfccInput.size
         Log.d("VADModel", "Received MFCC frames for inference: $timeSteps frames")
@@ -67,13 +79,13 @@ class VADModel(
             val outputBuffer = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder())
 
             Log.d("VADModel", "Running inference on TFLite model...")
-            tfliteInterpreter.run(inputBuffer, outputBuffer)
+            tfliteInterpreter?.run(inputBuffer, outputBuffer)
 
             outputBuffer.rewind()
             val vadScore = outputBuffer.float
             Log.d("VADModel", "VAD Inference complete! Score: $vadScore")
 
-            return vadScore <= 0.513f
+            return vadScore <= 0.6f
         } catch (e: Exception) {
             Log.e("VADModel", "Error during inference: ${e.message}")
             e.printStackTrace()
@@ -81,14 +93,14 @@ class VADModel(
         }
     }
 
-
-
     /**
      * Starts real-time VAD processing.
      */
     override fun start() {
         Log.d("VADModel", "Starting VAD Processing.")
+        startInterpreter() // Ensure the model is initialized before processing
         audioCollector.start()
+
         audioCollector.listener = { audioData ->
             if (audioData.data.isNotEmpty()) {
                 Log.d("VADModel", "Received MFCC Data for Inference: ${audioData.data.contentToString()}")
@@ -112,10 +124,14 @@ class VADModel(
         }
     }
 
+    /**
+     * Stops VAD processing and releases resources.
+     */
     override fun stop() {
         Log.d("VADModel", "Stopping VAD Processing.")
         audioCollector.stop()
-        tfliteInterpreter.close()
+        tfliteInterpreter?.close()
+        tfliteInterpreter = null // Mark interpreter as closed
     }
 
     /**

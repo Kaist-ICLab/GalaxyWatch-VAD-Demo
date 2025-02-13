@@ -20,7 +20,7 @@ class UniversalAudioInputStream(
     private val audioBuffer = LinkedBlockingQueue<Short>(MAX_QUEUE_SIZE)
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-        Log.d("UniversalAudioInputStream", "🎧 Attempting to read $length bytes from buffer")
+        Log.d("UniversalAudioInputStream", "Attempting to read $length bytes from buffer")
 
         val safeLength = minOf(length, buffer.size - offset) // Prevent exceeding buffer limit
         val byteBuffer = ByteBuffer.wrap(buffer, offset, safeLength).order(ByteOrder.LITTLE_ENDIAN)
