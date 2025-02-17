@@ -10,6 +10,6 @@ import org.koin.android.ext.koin.androidContext
 
 val koinModule = module {
     single { AudioCollector(androidContext()) }
-    single<ModelInterface<Boolean>> { VADModel(get(), androidContext()) }
+    single<ModelInterface<Boolean>> { VADModel(androidContext(), get()) }
     viewModel { VADViewModel(get(), get()) }
 }
