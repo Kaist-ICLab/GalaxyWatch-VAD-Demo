@@ -3,53 +3,60 @@ name: Android APK Release
 on:
   push:
     tags:
-      - 'v*'  # This triggers when pushing tags like v1.0, v2.1, etc.
+      - 'v*'  # Runs when a tag starting with 'v' (e.g., v1.0.0) is pushed
 
 jobs:
   build:
-    name: Build and Release APK
+    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set Up JDK
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: 'zulu'
+          java-version: '17'  # Change as needed
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Grant Execute Permission to Gradle
+      - name: Grant Execute Permission to Gradlew
         run: chmod +x gradlew
 
-      - name: Build APK
+      - name: Build Release APK
         run: ./gradlew assembleRelease
 
-      - name: Find Generated APK
+      - name: Find APK Path
         id: find_apk
-        run: |
-          APK_PATH=$(find . -type f -name "*.apk" | grep release | head -n 1)
-          echo "Found APK: $APK_PATH"
-          echo "apk_path=$APK_PATH" >> $GITHUB_ENV
+        run: echo "APK_PATH=$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)" >> $GITHUB_ENV
+
+      - name: Upload APK as Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-apk
+          path: ${{ env.APK_PATH }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Built APK
+        uses: actions/download-artifact@v3
+        with:
+          name: release-apk
+          path: .
+
+      - name: Rename APK (Optional)
+        run: mv *.apk my-app-${{ github.ref_name }}.apk
 
       - name: Create GitHub Release
-        id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
+          files: "*.apk"
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: ${{ github.ref }}
-          name: Release ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          release_name: "Release ${{ github.ref_name }}"
           draft: false
           prerelease: false
-
-      - name: Upload APK to Release
-        uses: softprops/action-gh-release@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: ${{ github.ref }}
-          files: ${{ env.apk_path }}
-          body: "📦 New APK release!"
