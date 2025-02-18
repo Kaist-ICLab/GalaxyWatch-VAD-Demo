@@ -1,9 +1,9 @@
-name: Android APK Release
+name: Build and Release Kotlin APK
 
 on:
   push:
     tags:
-      - 'v*'  # Runs when a tag starting with 'v' (e.g., v1.0.0) is pushed
+      - 'v*' 
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
-          java-version: '17'  # Change as needed
+          java-version: '17'
 
       - name: Grant Execute Permission to Gradlew
         run: chmod +x gradlew
@@ -26,15 +26,21 @@ jobs:
       - name: Build Release APK
         run: ./gradlew assembleRelease
 
-      - name: Find APK Path
+      - name: Locate APK
         id: find_apk
-        run: echo "APK_PATH=$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)" >> $GITHUB_ENV
+        run: |
+          ls -R app/build/outputs/apk/release/
+          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          echo "APK_PATH=$APK_FILE" >> $GITHUB_ENV
+          echo "Found APK at: $APK_FILE"
 
-      - name: Upload APK as Artifact
-        uses: actions/upload-artifact@v3
+      - name: Upload APK as an Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: release-apk
           path: ${{ env.APK_PATH }}
+          compression-level: 0 
+          if-no-files-found: error 
 
   release:
     name: Create GitHub Release
@@ -42,16 +48,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download Built APK
-        uses: actions/download-artifact@v3
+      - name: Download APK Artifact
+        uses: actions/download-artifact@v4
         with:
           name: release-apk
           path: .
+          merge-multiple: true  
 
       - name: Rename APK (Optional)
-        run: mv *.apk my-app-${{ github.ref_name }}.apk
+        run: |
+          APK_FILE=$(ls *.apk | head -n 1)
+          mv $APK_FILE kotlin-app-${{ github.ref_name }}.apk
+          echo "Renamed APK to kotlin-app-${{ github.ref_name }}.apk"
 
-      - name: Create GitHub Release
+      - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: "*.apk"
@@ -60,3 +70,4 @@ jobs:
           release_name: "Release ${{ github.ref_name }}"
           draft: false
           prerelease: false
+
