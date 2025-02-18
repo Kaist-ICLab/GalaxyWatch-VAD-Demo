@@ -12,7 +12,7 @@ import java.nio.ByteOrder
 import java.nio.channels.FileChannel
 
 class VADModel(
-    private val context: Context, // Pass Context to load TFLite model
+    private val context: Context,
     private val audioCollector: AudioCollector
 ) : ModelInterface<Boolean> {
 
@@ -20,12 +20,12 @@ class VADModel(
     override val outputStateFlow: StateFlow<Boolean>
         get() = _outputStateFlow
 
-    private var tfliteInterpreter: Interpreter? = null // Use nullable Interpreter
+    private var tfliteInterpreter: Interpreter? = null
 
-    // 🔹 Buffer to accumulate MFCC frames before inference
-    private val mfccFrameBuffer = mutableListOf<FloatArray>()
-    private val requiredFrameCount = 100  // Ensure at least 100 frames before inference
-    private val numMFCCs = 13  // Number of MFCC coefficients per frame
+    // 🔹 Buffer to accumulate MFCC frames (rolling buffer)
+    private val mfccFrameBuffer = ArrayDeque<FloatArray>(100) // Efficient queue-like behavior
+    private val requiredFrameCount = 100
+    private val numMFCCs = 13
     private val modelFile = "sgvad_mfcc.tflite"
 
     init {
@@ -54,7 +54,7 @@ class VADModel(
      * Runs SG-VAD inference using TFLite.
      */
     private fun inference(mfccInput: Array<FloatArray>): Boolean {
-        Log.d("VADModel", "inference() function called!")
+        //Log.d("VADModel", "inference() function called!")
 
         if (tfliteInterpreter == null) {
             Log.e("VADModel", "Error: TFLite Interpreter is not initialized!")
@@ -62,7 +62,7 @@ class VADModel(
         }
 
         val timeSteps = mfccInput.size
-        Log.d("VADModel", "Received MFCC frames for inference: $timeSteps frames")
+        //Log.d("VADModel", "Received MFCC frames for inference: $timeSteps frames")
 
         if (timeSteps < requiredFrameCount) {
             Log.e("VADModel", "Not enough MFCC frames for inference. TimeSteps: $timeSteps, Required: $requiredFrameCount")
@@ -70,7 +70,6 @@ class VADModel(
         }
 
         try {
-            // Flatten MFCC input for TFLite model
             val inputBuffer = ByteBuffer.allocateDirect(timeSteps * numMFCCs * 4)
                 .order(ByteOrder.nativeOrder())
 
@@ -78,7 +77,7 @@ class VADModel(
 
             val outputBuffer = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder())
 
-            Log.d("VADModel", "Running inference on TFLite model...")
+            //Log.d("VADModel", "Running inference on TFLite model...")
             tfliteInterpreter?.run(inputBuffer, outputBuffer)
 
             outputBuffer.rewind()
@@ -98,25 +97,25 @@ class VADModel(
      */
     override fun start() {
         Log.d("VADModel", "Starting VAD Processing.")
-        startInterpreter() // Ensure the model is initialized before processing
+        startInterpreter()
         audioCollector.start()
 
         audioCollector.listener = { audioData ->
             if (audioData.data.isNotEmpty()) {
                 Log.d("VADModel", "Received MFCC Data for Inference: ${audioData.data.contentToString()}")
 
-                // 🔹 Accumulate MFCC frames
-                mfccFrameBuffer.add(audioData.data)
-
-                // 🔹 Only run inference when enough frames are collected
+                // 🔹 Maintain Rolling Buffer of 100 Frames
                 if (mfccFrameBuffer.size >= requiredFrameCount) {
+                    mfccFrameBuffer.removeFirst() // Remove oldest frame
+                }
+                mfccFrameBuffer.add(audioData.data) // Add new frame
+
+                // 🔹 Run inference once buffer is full (100 frames)
+                if (mfccFrameBuffer.size == requiredFrameCount) {
                     val vadResult = inference(mfccFrameBuffer.toTypedArray())
                     _outputStateFlow.value = vadResult
 
                     Log.d("VADModel", "VAD Result: $vadResult")
-
-                    // 🔹 Clear buffer after inference
-                    mfccFrameBuffer.clear()
                 }
             } else {
                 Log.e("VADModel", "No MFCC data received for inference!")
@@ -131,7 +130,7 @@ class VADModel(
         Log.d("VADModel", "Stopping VAD Processing.")
         audioCollector.stop()
         tfliteInterpreter?.close()
-        tfliteInterpreter = null // Mark interpreter as closed
+        tfliteInterpreter = null
     }
 
     /**
