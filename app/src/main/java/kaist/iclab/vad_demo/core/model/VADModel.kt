@@ -12,8 +12,8 @@ import java.nio.ByteOrder
 import java.nio.channels.FileChannel
 
 class VADModel(
-    private val audioCollector: AudioCollector,
-    private val context: Context // Pass Context to load TFLite model
+    private val context: Context, // Pass Context to load TFLite model
+    private val audioCollector: AudioCollector
 ) : ModelInterface<Boolean> {
 
     private val _outputStateFlow = MutableStateFlow(false)
