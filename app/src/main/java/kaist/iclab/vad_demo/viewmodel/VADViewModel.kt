@@ -5,33 +5,43 @@ import kaist.iclab.vad_demo.core.collectors.AudioCollector
 import kaist.iclab.vad_demo.core.model.ModelInterface
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import android.content.Context
-
 
 class VADViewModel(
     private val audioCollector: AudioCollector,
     private val vadModel: ModelInterface<Boolean>,
-): ViewModel(), ViewModelInterface {
+) : ViewModel(), ViewModelInterface {
+
     private val _isRunning = MutableStateFlow(false)
     override val isRunning: StateFlow<Boolean>
         get() = _isRunning
 
-    override val isDetected =  vadModel.outputStateFlow
+    override val isDetected = vadModel.outputStateFlow
+
+    fun toggleVAD() {
+        if (_isRunning.value) {
+            stopVAD()
+        } else {
+            startVAD()
+        }
+    }
 
     override fun startVAD() {
-        _isRunning.value = true
-        //audioCollector.start()
-        vadModel.start()
-
+        if (!_isRunning.value) {
+            _isRunning.value = true
+            vadModel.start()
+        }
     }
 
     override fun stopVAD() {
-        _isRunning.value = false
-        //audioCollector.stop()
-        vadModel.stop()
+        if (_isRunning.value) {
+            _isRunning.value = false
+            vadModel.stop()
+        }
     }
+}
 
-    //    private val audioCollector -> Use Koin to define it
+
+//    private val audioCollector -> Use Koin to define it
     //    private val notificationManager ->
 
 //
@@ -61,4 +71,4 @@ class VADViewModel(
 //        notificationManager.enableNotifications()
 //        _isDetected.update { false }
 //    }
-}
+
