@@ -2,8 +2,8 @@ package kaist.iclab.vad_demo.core.model
 
 import kotlinx.coroutines.flow.StateFlow
 
-interface ModelInterface<T> {
-    val outputStateFlow: StateFlow<T>
+interface ModelInterface {
+    val outputStateFlow: StateFlow<Boolean>
     fun start()
     fun stop()
 }
