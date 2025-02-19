@@ -8,22 +8,24 @@ import kaist.iclab.vad_demo.Util
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.PipedInputStream
+import java.io.PipedOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
-class AudioCollector: CollectorInterface {
-
-    override var listener: ((AudioDataEntity) -> Unit)? = null
-
+class AudioCollector:CollectorInterface {
+    /*
+    * Frame Length: The number of samples in each frame
+    * Overlap: The number of samples that overlap between adjacent frames
+    * */
     data class Config(
-        val invokeRate: Long,
-        val samplesPerFrame: Int,
-        val overlap: Int,
+//        val numFrames: Int,
+//        val frameLength: Int,
+//        val overlap: Int,
+        val bufferSize: Int,
         val sampleRate: Int,
         val micType: Int,
         val channel: Int,
@@ -31,86 +33,70 @@ class AudioCollector: CollectorInterface {
     )
 
     private val defaultConfig = Config(
-        invokeRate = 1000L, // 1 second
-        samplesPerFrame = 2048,
-        overlap = 1024,
-        sampleRate = 16000,
+//        numFrames = 100,
+//        frameLength = 320, // 0.02 seconds
+//        overlap = 160, // 0.01 seconds
+        bufferSize = 16000, // 1 second
+        sampleRate = 16000, // 16 kHz
         AudioSource.VOICE_RECOGNITION,
         AudioFormat.CHANNEL_IN_MONO,
         AudioFormat.ENCODING_PCM_16BIT
     )
     private val configFlow = MutableStateFlow(defaultConfig)
 
-
+    private var audioPipedOutputStream: PipedOutputStream? = null
+    override var audioPipedInputStream: PipedInputStream? = null
     private var job: Job? = null
 
     @RequiresPermission(android.Manifest.permission.RECORD_AUDIO)
     override fun start() {
         Util.log("Start audio collection")
-        job = CoroutineScope(Dispatchers.IO).launch{
-            getAudioFlow().collect {
-                listener?.invoke(AudioDataEntity(it.map { it.toFloat() }.toFloatArray()))
-            }
-        }
+        audioPipedOutputStream = PipedOutputStream()
+        audioPipedInputStream = PipedInputStream(audioPipedOutputStream, configFlow.value.bufferSize)
+        job = startAudioInput()
+        job?.start()
 
     }
 
     override fun stop() {
         Util.log("Stop audio collection")
+        audioPipedOutputStream?.close()
+        audioPipedOutputStream = null
+        audioPipedInputStream?.close()
+        audioPipedInputStream = null
         job?.cancel()
         job = null
     }
 
     @RequiresPermission(android.Manifest.permission.RECORD_AUDIO)
-    fun getAudioFlow(): Flow<ShortArray> = flow {
-        val bufferSize = AudioRecord.getMinBufferSize(
-            configFlow.value.sampleRate,
-            configFlow.value.channel,
-            configFlow.value.encoding
-        )
-        val audioRecord = AudioRecord(
-            configFlow.value.micType,
-            configFlow.value.sampleRate,
-            configFlow.value.channel,
-            configFlow.value.encoding,
-            bufferSize
-        )
-        audioRecord.startRecording()
-        val buffer = ShortArray(bufferSize)
-        try {
-            while (currentCoroutineContext().isActive) { // Keep collecting data while the coroutine is active
-                val readSize = audioRecord.read(buffer, 0, buffer.size)
-                if (readSize > 0) {
-                    emit(buffer.copyOf(readSize)) // Emit the audio data
+    fun startAudioInput(): Job {
+        return CoroutineScope(Dispatchers.IO).launch {
+            val bufferSize = AudioRecord.getMinBufferSize(
+                configFlow.value.sampleRate,
+                configFlow.value.channel,
+                configFlow.value.encoding
+            )
+            val audioRecord = AudioRecord(
+                configFlow.value.micType,
+                configFlow.value.sampleRate,
+                configFlow.value.channel,
+                configFlow.value.encoding,
+                bufferSize
+            )
+
+            audioRecord.startRecording()
+            try {
+                while(isActive){
+                    val tempBuffer = ShortArray(bufferSize / 2) // 16-bit encoding -> 2 bytes per sample -> 1 Short per sample
+                    val numRead = audioRecord.read(tempBuffer, 0, tempBuffer.size)
+                    val byteBuffer = ByteBuffer.allocate(numRead * 2).order(ByteOrder.LITTLE_ENDIAN)
+                    tempBuffer.take(numRead).forEach { byteBuffer.putShort(it) }
+                    audioPipedOutputStream?.write(byteBuffer.array())
                 }
-                delay(configFlow.value.invokeRate) // Small delay to avoid CPU overload
+            } finally {
+                audioRecord.stop()
+                audioRecord.release()
             }
-        } finally {
-            audioRecord.stop()
-            audioRecord.release()
         }
     }
 }
-
-
-//        audioCollector.listener = { audioData ->
-//            if (audioData.data.isNotEmpty()) {
-//                Log.d("VADModel", "Received MFCC Data for Inference: ${audioData.data.contentToString()}")
-//
-//                // 🔹 Maintain Rolling Buffer of 100 Frames
-//                if (mfccFrameBuffer.size >= requiredFrameCount) {
-//                    mfccFrameBuffer.removeFirst() // Remove oldest frame
-//                }
-//                mfccFrameBuffer.add(audioData.data) // Add new frame
-//
-//                // 🔹 Run inference once buffer is full (100 frames)
-//                if (mfccFrameBuffer.size == requiredFrameCount) {
-//                    val vadResult = inference(mfccFrameBuffer.toTypedArray())
-//                    _outputStateFlow.value = vadResult
-//
-//                    Log.d("VADModel", "VAD Result: $vadResult")
-//                }
-//            } else {
-//                Log.e("VADModel", "No MFCC data received for inference!")
-//            }
-//        }

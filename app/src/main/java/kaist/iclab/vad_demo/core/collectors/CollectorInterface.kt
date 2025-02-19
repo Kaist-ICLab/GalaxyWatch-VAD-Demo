@@ -1,5 +1,7 @@
 package kaist.iclab.vad_demo.core.collectors
 
+import java.io.PipedInputStream
+
 interface CollectorInterface {
 //    val NAME: String
 //
@@ -24,8 +26,9 @@ interface CollectorInterface {
     fun start()
     /* Stop collector to stop collecting data: RUNNING => READY */
     fun stop()
-
-    /* Based on the data, define action */
-//    var listener: ((DataEntity) -> Unit)?
-    var listener: ((AudioDataEntity) -> Unit)?
+    var audioPipedInputStream: PipedInputStream?
+//
+//    /* Based on the data, define action */
+////    var listener: ((DataEntity) -> Unit)?
+//    var listener: ((AudioDataEntity) -> Unit)?
 }
