@@ -13,14 +13,14 @@ import kotlinx.coroutines.launch
 import java.io.PipedInputStream
 
 class TarsosDSPMFCCPreprocessor {
-    private val numFrame = 100
+    private val numFrame = 100 /* TODO: Why we need 100? */
     private val numMFCCs = 64
     private val sampleRate = 16000
     private val frameLength = 320
     private val overlap = 160
     private val numMelFilters = 64
     private val lowerFilterFreq = 0
-    private val upperFilterFreq = 8000
+    private val upperFilterFreq = 8000 //TODO there's no upper Limit in the original code
 
     var inputDeque = ArrayDeque<FloatArray>(numFrame)
     private var dispatcher: AudioDispatcher? = null
