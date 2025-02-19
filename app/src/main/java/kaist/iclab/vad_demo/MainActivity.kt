@@ -14,21 +14,51 @@ import android.net.Uri
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import kaist.iclab.vad_demo.core.collectors.AudioCollector
+import kaist.iclab.vad_demo.core.model.ModelInterface
 import kaist.iclab.vad_demo.core.model.VADModel
+import kaist.iclab.vad_demo.core.preprocess.TarsosDSPMFCCPreprocessor
 import kaist.iclab.vad_demo.presentation.VADApp
 import org.koin.android.ext.android.inject
 
 class MainActivity : ComponentActivity() {
+    private val audioCollector: AudioCollector by inject()
+    private val mfccPreprocessor: TarsosDSPMFCCPreprocessor by inject()
+    private val vadModel: ModelInterface by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         setTheme(android.R.style.Theme_DeviceDefault)
-//        checkAndRequestPermissions()
+
         setContent {
-            VADApp()
+            VADApp() // ViewModel handles when to start processing
         }
     }
+
+    /**private fun startAudioProcessing() {
+        // Check if RECORD_AUDIO permission is already granted
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            // Safe to call audioCollector.start() now
+            audioCollector.start()
+
+            val audioStream = audioCollector.audioPipedInputStream
+            if (audioStream != null) {
+                mfccPreprocessor.init(audioStream)
+                mfccPreprocessor.start()
+            }
+            vadModel.start()
+        } else {
+            // Permission is not granted, so request it or handle accordingly
+            // For example, you could call requestPermissions(...) here
+        }
+    }**/
+
+
+
+
+
 
 //    private val audioCollector: AudioCollector by inject() // Inject AudioCollector from Koin
 //    private val requestPermissionLauncher =

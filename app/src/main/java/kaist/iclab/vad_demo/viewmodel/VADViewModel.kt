@@ -1,14 +1,22 @@
 package kaist.iclab.vad_demo.viewmodel
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import kaist.iclab.vad_demo.core.collectors.AudioCollector
 import kaist.iclab.vad_demo.core.model.ModelInterface
+import kaist.iclab.vad_demo.core.preprocess.TarsosDSPMFCCPreprocessor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 class VADViewModel(
+    private val context: Context,
     private val audioCollector: AudioCollector,
-    private val vadModel: ModelInterface<Boolean>,
+    private val vadModel: ModelInterface,
+    private val mfccPreprocessor: TarsosDSPMFCCPreprocessor
 ) : ViewModel(), ViewModelInterface {
 
     private val _isRunning = MutableStateFlow(false)
@@ -27,17 +35,46 @@ class VADViewModel(
 
     override fun startVAD() {
         if (!_isRunning.value) {
-            _isRunning.value = true
-            vadModel.start()
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_GRANTED
+            ) {
+                _isRunning.value = true
+
+                // 1) Start audio collection
+                audioCollector.start()
+
+                // 2) Initialize and start MFCC processing
+                val audioStream = audioCollector.audioPipedInputStream
+                if (audioStream != null) {
+                    mfccPreprocessor.init(audioStream)
+                    mfccPreprocessor.start()
+                } else {
+                    Log.e("VADViewModel", "Audio stream is null!")
+                }
+
+                // 3) Start VAD model processing
+                vadModel.start()
+            } else {
+                Log.e("VADViewModel", "Microphone permission not granted!")
+            }
         }
     }
 
     override fun stopVAD() {
         if (_isRunning.value) {
             _isRunning.value = false
+
+            // 1) Stop VAD processing
             vadModel.stop()
+
+            // 2) Stop MFCC processing
+            mfccPreprocessor.stop()
+
+            // 3) Stop Audio collection
+            audioCollector.stop()
         }
     }
+
 }
 
 

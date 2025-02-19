@@ -13,14 +13,14 @@ import kotlinx.coroutines.launch
 import java.io.PipedInputStream
 
 class TarsosDSPMFCCPreprocessor {
-    private val numFrame = 100 /* TODO: Why we need 100? */
-    private val numMFCCs = 64
+    private val numFrame = 128  // Collect 128 frames before inference
+    private val numMFCCs = 32
     private val sampleRate = 16000
-    private val frameLength = 320
-    private val overlap = 160
+    private val frameLength = 400
+    private val overlap = 240
     private val numMelFilters = 64
     private val lowerFilterFreq = 0
-    private val upperFilterFreq = 8000 //TODO there's no upper Limit in the original code
+    private val upperFilterFreq = 8000
 
     var inputDeque = ArrayDeque<FloatArray>(numFrame)
     private var dispatcher: AudioDispatcher? = null
@@ -31,7 +31,7 @@ class TarsosDSPMFCCPreprocessor {
         val audioInputStream = UniversalAudioInputStream(
             audioPipedInputStream,
             TarsosDSPAudioFormat(sampleRate.toFloat(), 16, 1, true, false)
-        ) // 16-bit encoding, mono channel
+        )
 
         val mfccProcessor = MFCC(
             frameLength,
@@ -41,15 +41,17 @@ class TarsosDSPMFCCPreprocessor {
             lowerFilterFreq.toFloat(),
             upperFilterFreq.toFloat()
         )
+
         dispatcher = AudioDispatcher(audioInputStream, frameLength, overlap).apply {
             addAudioProcessor(mfccProcessor)
             addAudioProcessor(object : AudioProcessor {
                 override fun process(audioEvent: AudioEvent?): Boolean {
                     val mfcc = mfccProcessor.mfcc
-                    if(inputDeque.size == numFrame) inputDeque.removeFirst()
+                    if (inputDeque.size == numFrame) inputDeque.removeFirst()
                     inputDeque.addLast(mfcc)
-                    if(inputDeque.size == numFrame){
-                        listener?.invoke(inputDeque.toTypedArray())
+
+                    if (inputDeque.size == numFrame) {
+                        listener?.invoke(inputDeque.toTypedArray())  // Only send when we have 128 frames
                     }
                     return true
                 }

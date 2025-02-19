@@ -51,12 +51,20 @@ class AudioCollector:CollectorInterface {
     @RequiresPermission(android.Manifest.permission.RECORD_AUDIO)
     override fun start() {
         Util.log("Start audio collection")
-        audioPipedOutputStream = PipedOutputStream()
-        audioPipedInputStream = PipedInputStream(audioPipedOutputStream, configFlow.value.bufferSize)
-        job = startAudioInput()
-        job?.start()
+        try {
+            audioPipedOutputStream = PipedOutputStream()
+            audioPipedInputStream = PipedInputStream(audioPipedOutputStream, configFlow.value.bufferSize)
 
+            job = startAudioInput()
+            job?.start()
+
+            Util.log("AudioCollector started successfully, buffer size: ${configFlow.value.bufferSize}")
+        } catch (e: Exception) {
+            Util.log("Error starting AudioCollector: ${e.message}")
+        }
     }
+
+
 
     override fun stop() {
         Util.log("Stop audio collection")
